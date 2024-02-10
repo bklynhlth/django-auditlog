@@ -300,14 +300,15 @@ class LogEntry(models.Model):
     database_name = models.CharField(
         max_length=255, verbose_name=_("database name"), default="RDS"
     )
-    content_type = models.ForeignKey(
-        to="contenttypes.ContentType",
-        on_delete=models.CASCADE,
-        related_name="+",
-        verbose_name=_("content type"),
-    )
     record = models.CharField(
         db_index=True, max_length=255, verbose_name=_("object pk")
+    )
+    reason = models.CharField(
+        max_length=255,
+        choices=Reason.choices,
+        verbose_name=_("reason"),
+        null=True,
+        blank=True,
     )
     object_representation = models.TextField(verbose_name=_("object representation"))
     action = models.PositiveSmallIntegerField(
@@ -319,7 +320,12 @@ class LogEntry(models.Model):
         db_index=True,
         verbose_name=_("timestamp"),
     )
-    reason = models.CharField(choices=Reason.choices, verbose_name=_("reason"))
+    content_type = models.ForeignKey(
+        to="contenttypes.ContentType",
+        on_delete=models.CASCADE,
+        related_name="+",
+        verbose_name=_("content type"),
+    )
 
     objects = LogEntryManager()
 
