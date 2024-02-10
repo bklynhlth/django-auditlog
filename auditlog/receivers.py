@@ -64,6 +64,7 @@ def log_update(sender, instance, **kwargs):
             diff_old=old,
             diff_new=instance,
             fields_to_check=update_fields,
+            reason=LogEntry.Reason.data_processing,
         )
 
 
@@ -81,6 +82,7 @@ def log_delete(sender, instance, **kwargs):
             sender=sender,
             diff_old=instance,
             diff_new=None,
+            reason=LogEntry.Reason.data_deletion,
         )
 
 
@@ -98,6 +100,7 @@ def log_access(sender, instance, **kwargs):
             diff_old=None,
             diff_new=None,
             force_log=True,
+            reason=LogEntry.Reason.data_processing,
         )
 
 
