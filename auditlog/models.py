@@ -281,6 +281,19 @@ class LogEntry(models.Model):
             (ACCESS, _("access")),
         )
 
+    class Reason:
+        data_entry = "data_entry"
+        data_processing = "data_processing"
+        data_deletion = "data_deletion"
+        data_cleaning = "data_cleaning"
+
+        choices = (
+            (data_entry, _("data_entry")),
+            (data_processing, _("data_processing")),
+            (data_deletion, _("data_deletion")),
+            (data_cleaning, _("data_cleaning")),
+        )
+
     developer_name = models.CharField(
         max_length=255, verbose_name=_("developer name"), default="willisaplication"
     )
@@ -306,6 +319,7 @@ class LogEntry(models.Model):
         db_index=True,
         verbose_name=_("timestamp"),
     )
+    reason = models.CharField(choices=Reason.choices, verbose_name=_("reason"))
 
     objects = LogEntryManager()
 

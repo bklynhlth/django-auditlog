@@ -43,6 +43,7 @@ def log_create(sender, instance, created, **kwargs):
             sender=sender,
             diff_old=None,
             diff_new=instance,
+            reason=LogEntry.Reason.data_entry,
         )
 
 
@@ -101,12 +102,17 @@ def log_access(sender, instance, **kwargs):
 
 
 def _create_log_entry(
-    action, instance, sender, diff_old, diff_new, fields_to_check=None, force_log=False
+    action,
+    instance,
+    sender,
+    diff_old,
+    diff_new,
+    reason,
+    fields_to_check=None,
+    force_log=False,
 ):
     pre_log_results = pre_log.send(
-        sender,
-        instance=instance,
-        action=action,
+        sender, instance=instance, action=action, reason=reason
     )
 
     if any(item[1] is False for item in pre_log_results):
@@ -126,6 +132,7 @@ def _create_log_entry(
                 action=action,
                 changes=changes,
                 force_log=force_log,
+                reason=reason,
             )
     except BaseException as e:
         error = e
@@ -141,6 +148,7 @@ def _create_log_entry(
                 changes=changes,
                 log_entry=log_entry,
                 log_created=log_entry is not None,
+                reason=reason,
             )
         if error:
             raise error
