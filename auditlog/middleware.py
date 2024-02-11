@@ -1,7 +1,5 @@
 from django.contrib.auth import get_user_model
 
-from auditlog.cid import set_cid
-
 
 class AuditlogMiddleware:
     """
