@@ -1,3 +1,8 @@
+from django.contrib.auth import get_user_model
+
+from auditlog.cid import set_cid
+
+
 class AuditlogMiddleware:
     """
     Middleware to couple the request's user to log items. This is accomplished by currying the
@@ -6,3 +11,6 @@ class AuditlogMiddleware:
 
     def __init__(self, get_response=None):
         self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
