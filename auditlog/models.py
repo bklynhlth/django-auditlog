@@ -46,7 +46,6 @@ class LogEntryManager(models.Manager):
         :return: The new log entry or `None` if there were no changes.
         :rtype: LogEntry
         """
-        from auditlog.cid import get_cid
 
         changes = kwargs.get("changes", None)
         pk = self._get_pk_value(instance)
@@ -55,25 +54,14 @@ class LogEntryManager(models.Manager):
             kwargs.setdefault(
                 "content_type", ContentType.objects.get_for_model(instance)
             )
-            kwargs.setdefault("object_pk", pk)
+            kwargs.setdefault("record", pk)
             try:
-                object_repr = smart_str(instance)
+                object_representation = smart_str(instance)
             except ObjectDoesNotExist:
-                object_repr = DEFAULT_OBJECT_REPR
-            kwargs.setdefault("object_repr", object_repr)
-            kwargs.setdefault(
-                "serialized_data", self._get_serialized_data_or_none(instance)
-            )
-
-            if isinstance(pk, int):
-                kwargs.setdefault("object_id", pk)
-
-            get_additional_data = getattr(instance, "get_additional_data", None)
-            if callable(get_additional_data):
-                kwargs.setdefault("additional_data", get_additional_data())
+                object_representation = DEFAULT_OBJECT_REPR
+            kwargs.setdefault("object_representation", object_representation)
 
             # set correlation id
-            kwargs.setdefault("cid", get_cid())
             return self.create(**kwargs)
         return None
 
@@ -94,27 +82,19 @@ class LogEntryManager(models.Manager):
         :return: The new log entry or `None` if there were no changes.
         :rtype: LogEntry
         """
-        from auditlog.cid import get_cid
 
         pk = self._get_pk_value(instance)
         if changed_queryset:
             kwargs.setdefault(
                 "content_type", ContentType.objects.get_for_model(instance)
             )
-            kwargs.setdefault("object_pk", pk)
+            kwargs.setdefault("record", pk)
             try:
-                object_repr = smart_str(instance)
+                object_representation = smart_str(instance)
             except ObjectDoesNotExist:
-                object_repr = DEFAULT_OBJECT_REPR
-            kwargs.setdefault("object_repr", object_repr)
+                object_representation = DEFAULT_OBJECT_REPR
+            kwargs.setdefault("object_representation", object_representation)
             kwargs.setdefault("action", LogEntry.Action.UPDATE)
-
-            if isinstance(pk, int):
-                kwargs.setdefault("object_id", pk)
-
-            get_additional_data = getattr(instance, "get_additional_data", None)
-            if callable(get_additional_data):
-                kwargs.setdefault("additional_data", get_additional_data())
 
             objects = [smart_str(instance) for instance in changed_queryset]
             kwargs["changes"] = {
@@ -125,7 +105,6 @@ class LogEntryManager(models.Manager):
                 }
             }
 
-            kwargs.setdefault("cid", get_cid())
             return self.create(**kwargs)
 
         return None
@@ -147,9 +126,9 @@ class LogEntryManager(models.Manager):
         pk = self._get_pk_value(instance)
 
         if isinstance(pk, int):
-            return self.filter(content_type=content_type, object_id=pk)
+            return self.filter(content_type=content_type)
         else:
-            return self.filter(content_type=content_type, object_pk=smart_str(pk))
+            return self.filter(content_type=content_type, record=smart_str(pk))
 
     def get_for_objects(self, queryset):
         """
@@ -169,22 +148,18 @@ class LogEntryManager(models.Manager):
         )
 
         if isinstance(primary_keys[0], int):
-            return (
-                self.filter(content_type=content_type)
-                .filter(Q(object_id__in=primary_keys))
-                .distinct()
-            )
+            return self.filter(content_type=content_type).distinct()
         elif isinstance(queryset.model._meta.pk, models.UUIDField):
             primary_keys = [smart_str(pk) for pk in primary_keys]
             return (
                 self.filter(content_type=content_type)
-                .filter(Q(object_pk__in=primary_keys))
+                .filter(Q(record__in=primary_keys))
                 .distinct()
             )
         else:
             return (
                 self.filter(content_type=content_type)
-                .filter(Q(object_pk__in=primary_keys))
+                .filter(Q(record__in=primary_keys))
                 .distinct()
             )
 
@@ -220,32 +195,6 @@ class LogEntryManager(models.Manager):
         if isinstance(pk, models.Model):
             pk = self._get_pk_value(pk)
         return pk
-
-    def _get_serialized_data_or_none(self, instance):
-        from auditlog.registry import auditlog
-
-        opts = auditlog.get_serialize_options(instance.__class__)
-        if not opts["serialize_data"]:
-            return None
-
-        model_fields = auditlog.get_model_fields(instance.__class__)
-        kwargs = opts.get("serialize_kwargs", {})
-
-        if opts["serialize_auditlog_fields_only"]:
-            kwargs.setdefault(
-                "fields", self._get_applicable_model_fields(instance, model_fields)
-            )
-
-        instance_copy = self._get_copy_with_python_typed_fields(instance)
-        data = dict(
-            json.loads(serializers.serialize("json", (instance_copy,), **kwargs))[0]
-        )
-
-        mask_fields = model_fields["mask_fields"]
-        if mask_fields:
-            data = self._mask_serialized_fields(data, mask_fields)
-
-        return data
 
     def _get_copy_with_python_typed_fields(self, instance):
         """
@@ -332,50 +281,50 @@ class LogEntry(models.Model):
             (ACCESS, _("access")),
         )
 
-    content_type = models.ForeignKey(
-        to="contenttypes.ContentType",
-        on_delete=models.CASCADE,
-        related_name="+",
-        verbose_name=_("content type"),
+    class Reason:
+        data_entry = "data_entry"
+        data_processing = "data_processing"
+        data_deletion = "data_deletion"
+        data_cleaning = "data_cleaning"
+
+        choices = (
+            (data_entry, _("data_entry")),
+            (data_processing, _("data_processing")),
+            (data_deletion, _("data_deletion")),
+            (data_cleaning, _("data_cleaning")),
+        )
+
+    developer_name = models.CharField(
+        max_length=255, verbose_name=_("developer name"), default="willisaplication"
     )
-    object_pk = models.CharField(
+    database_name = models.CharField(
+        max_length=255, verbose_name=_("database name"), default="RDS"
+    )
+    record = models.CharField(
         db_index=True, max_length=255, verbose_name=_("object pk")
     )
-    object_id = models.BigIntegerField(
-        blank=True, db_index=True, null=True, verbose_name=_("object id")
+    reason = models.CharField(
+        max_length=255,
+        choices=Reason.choices,
+        verbose_name=_("reason"),
+        null=True,
+        blank=True,
     )
-    object_repr = models.TextField(verbose_name=_("object representation"))
-    serialized_data = models.JSONField(null=True)
+    object_representation = models.TextField(verbose_name=_("object representation"))
     action = models.PositiveSmallIntegerField(
         choices=Action.choices, verbose_name=_("action"), db_index=True
     )
-    changes_text = models.TextField(blank=True, verbose_name=_("change message"))
     changes = models.JSONField(null=True, verbose_name=_("change message"))
-    actor = models.ForeignKey(
-        to=settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="+",
-        verbose_name=_("actor"),
-    )
-    cid = models.CharField(
-        max_length=255,
-        db_index=True,
-        blank=True,
-        null=True,
-        verbose_name=_("Correlation ID"),
-    )
-    remote_addr = models.GenericIPAddressField(
-        blank=True, null=True, verbose_name=_("remote address")
-    )
     timestamp = models.DateTimeField(
         default=django_timezone.now,
         db_index=True,
         verbose_name=_("timestamp"),
     )
-    additional_data = models.JSONField(
-        blank=True, null=True, verbose_name=_("additional data")
+    content_type = models.ForeignKey(
+        to="contenttypes.ContentType",
+        on_delete=models.CASCADE,
+        related_name="+",
+        verbose_name=_("content type"),
     )
 
     objects = LogEntryManager()
@@ -396,7 +345,7 @@ class LogEntry(models.Model):
         else:
             fstring = _("Logged {repr:s}")
 
-        return fstring.format(repr=self.object_repr)
+        return fstring.format(repr=self.object_representation)
 
     @property
     def changes_dict(self):
@@ -555,11 +504,6 @@ class AuditlogHistoryField(GenericRelation):
     def __init__(self, pk_indexable=True, delete_related=False, **kwargs):
         kwargs["to"] = LogEntry
 
-        if pk_indexable:
-            kwargs["object_id_field"] = "object_id"
-        else:
-            kwargs["object_id_field"] = "object_pk"
-
         kwargs["content_type_field"] = "content_type"
         self.delete_related = delete_related
         super().__init__(**kwargs)
@@ -585,9 +529,6 @@ def _changes_func() -> Callable[[LogEntry], Dict]:
     def json_then_text(instance: LogEntry) -> Dict:
         if instance.changes:
             return instance.changes
-        elif instance.changes_text:
-            with contextlib.suppress(ValueError):
-                return json.loads(instance.changes_text)
         return {}
 
     def default(instance: LogEntry) -> Dict:
