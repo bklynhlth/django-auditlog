@@ -22,6 +22,7 @@ from django.utils import formats
 from django.utils import timezone as django_timezone
 from django.utils.encoding import smart_str
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 
 from auditlog.diff import mask_str
 
@@ -298,7 +299,7 @@ class LogEntry(models.Model):
         max_length=255, verbose_name=_("developer name"), default="willisaplication"
     )
     database_name = models.CharField(
-        max_length=255, verbose_name=_("database name"), default="RDS"
+        max_length=255, verbose_name=_("database name"), default=settings.DATABASE_NAME
     )
     record = models.CharField(
         db_index=True, max_length=255, verbose_name=_("object pk")
