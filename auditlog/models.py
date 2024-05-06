@@ -50,12 +50,14 @@ class LogEntryManager(models.Manager):
 
         change_value = kwargs.get("change_value", None)
         pk = self._get_pk_value(instance)
+        table_name = self._get_table_name(instance)
 
         if change_value is not None or force_log:
             kwargs.setdefault(
                 "content_type", ContentType.objects.get_for_model(instance)
             )
-            kwargs.setdefault("record", pk)
+            kwargs.setdefault("identifier", pk)
+            kwargs.setdefault("event_table", table_name)
             try:
                 event_column = smart_str(instance)
             except ObjectDoesNotExist:
@@ -85,11 +87,13 @@ class LogEntryManager(models.Manager):
         """
 
         pk = self._get_pk_value(instance)
+        table_name = self._get_table_name(instance)
         if changed_queryset:
             kwargs.setdefault(
                 "content_type", ContentType.objects.get_for_model(instance)
             )
-            kwargs.setdefault("record", pk)
+            kwargs.setdefault("identifier", pk)
+            kwargs.setdefault("event_table", table_name)
             try:
                 event_column = smart_str(instance)
             except ObjectDoesNotExist:
@@ -129,7 +133,7 @@ class LogEntryManager(models.Manager):
         if isinstance(pk, int):
             return self.filter(content_type=content_type)
         else:
-            return self.filter(content_type=content_type, record=smart_str(pk))
+            return self.filter(content_type=content_type, identifier=smart_str(pk))
 
     def get_for_objects(self, queryset):
         """
@@ -196,6 +200,17 @@ class LogEntryManager(models.Manager):
         if isinstance(pk, models.Model):
             pk = self._get_pk_value(pk)
         return pk
+    
+    def _get_table_name(self, instance):
+        """
+        Get the table name for a model instance.
+
+        :param instance: The model instance to get the table name for.
+        :type instance: Model
+        :return: The table name of the given model instance.
+        """
+        table_name = instance._meta.db_table
+        return table_name
 
     def _get_copy_with_python_typed_fields(self, instance):
         """
@@ -301,8 +316,11 @@ class LogEntry(models.Model):
     database_name = models.CharField(
         max_length=255, verbose_name=_("database name"), default=settings.DATABASE_NAME
     )
-    record = models.CharField(
-        db_index=True, max_length=255, verbose_name=_("object pk")
+    identifier = models.CharField(
+        db_index=True, max_length=255, verbose_name=_("identifier"), default="None"
+    )
+    event_table = models.CharField(
+        max_length=255, verbose_name=_("event table"), default="None"
     )
     event_type = models.CharField(
         max_length=255,
@@ -311,7 +329,7 @@ class LogEntry(models.Model):
         null=True,
         blank=True,
     )
-    event_column = models.TextField(verbose_name=_("object representation"))
+    event_column = models.TextField(verbose_name=_("event column"), default="None")
     action = models.PositiveSmallIntegerField(
         choices=Action.choices, verbose_name=_("action"), db_index=True
     )
