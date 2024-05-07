@@ -311,7 +311,7 @@ class LogEntry(models.Model):
         )
 
     source = models.CharField(
-        max_length=255, verbose_name=_("source"), default="aplication"
+        max_length=255, verbose_name=_("source"), default="application"
     )
     database_name = models.CharField(
         max_length=255, verbose_name=_("database name"), default=settings.DATABASE_NAME
