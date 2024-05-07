@@ -51,38 +51,38 @@ class LogEntryAdminMixin:
     def msg_short(self, obj):
         if obj.action in [LogEntry.Action.DELETE, LogEntry.Action.ACCESS]:
             return ""  # delete
-        changes = obj.changes_dict
-        s = "" if len(changes) == 1 else "s"
-        fields = ", ".join(changes.keys())
+        change_value = obj.changes_dict
+        s = "" if len(change_value) == 1 else "s"
+        fields = ", ".join(change_value.keys())
         if len(fields) > MAX:
             i = fields.rfind(" ", 0, MAX)
             fields = fields[:i] + " .."
-        return "%d change%s: %s" % (len(changes), s, fields)
+        return "%d change%s: %s" % (len(change_value), s, fields)
 
     @admin.display(description=_("Changes"))
     def msg(self, obj):
-        changes = obj.changes_dict
+        change_value = obj.changes_dict
 
         atom_changes = {}
         m2m_changes = {}
 
-        for field, change in changes.items():
-            if isinstance(change, dict):
+        for field, change_value in change_value.items():
+            if isinstance(change_value, dict):
                 assert (
-                    change["type"] == "m2m"
+                    change_value["type"] == "m2m"
                 ), "Only m2m operations are expected to produce dict changes now"
-                m2m_changes[field] = change
+                m2m_changes[field] = change_value
             else:
-                atom_changes[field] = change
+                atom_changes[field] = change_value
 
         msg = []
 
         if atom_changes:
             msg.append("<table>")
             msg.append(self._format_header("#", "Field", "From", "To"))
-            for i, (field, change) in enumerate(sorted(atom_changes.items()), 1):
+            for i, (field, change_value) in enumerate(sorted(atom_changes.items()), 1):
                 value = [i, self.field_verbose_name(obj, field)] + (
-                    ["***", "***"] if field == "password" else change
+                    ["***", "***"] if field == "password" else change_value
                 )
                 msg.append(self._format_line(*value))
             msg.append("</table>")
@@ -90,11 +90,11 @@ class LogEntryAdminMixin:
         if m2m_changes:
             msg.append("<table>")
             msg.append(self._format_header("#", "Relationship", "Action", "Objects"))
-            for i, (field, change) in enumerate(sorted(m2m_changes.items()), 1):
+            for i, (field, change_value) in enumerate(sorted(m2m_changes.items()), 1):
                 change_html = format_html_join(
                     mark_safe("<br>"),
                     "{}",
-                    [(value,) for value in change["objects"]],
+                    [(value,) for value in change_value["objects"]],
                 )
 
                 msg.append(
@@ -102,7 +102,7 @@ class LogEntryAdminMixin:
                         "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                         i,
                         self.field_verbose_name(obj, field),
-                        change["operation"],
+                        change_value["operation"],
                         change_html,
                     )
                 )

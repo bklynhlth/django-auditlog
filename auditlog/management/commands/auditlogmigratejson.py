@@ -88,7 +88,7 @@ class Command(BaseCommand):
             updated = []
             errors = []
 
-            LogEntry.objects.bulk_update(updated, fields=["changes"])
+            LogEntry.objects.bulk_update(updated, fields=["change_value"])
             if errors:
                 self.stderr.write(
                     self.style.ERROR(
@@ -116,7 +116,7 @@ class Command(BaseCommand):
         def postgres():
             with connection.cursor() as cursor:
                 cursor.execute(
-                    'UPDATE auditlog_logentry SET changes="changes_text"::jsonb'
+                    'UPDATE auditlog_logentry SET change_value="changes_text"::jsonb'
                 )
                 return cursor.cursor.rowcount
 

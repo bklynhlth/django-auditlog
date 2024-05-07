@@ -48,19 +48,21 @@ class LogEntryManager(models.Manager):
         :rtype: LogEntry
         """
 
-        changes = kwargs.get("changes", None)
+        change_value = kwargs.get("change_value", None)
         pk = self._get_pk_value(instance)
+        table_name = self._get_table_name(instance)
 
-        if changes is not None or force_log:
+        if change_value is not None or force_log:
             kwargs.setdefault(
                 "content_type", ContentType.objects.get_for_model(instance)
             )
-            kwargs.setdefault("record", pk)
+            kwargs.setdefault("identifier", pk)
+            kwargs.setdefault("event_table", table_name)
             try:
-                object_representation = smart_str(instance)
+                event_column = smart_str(instance)
             except ObjectDoesNotExist:
-                object_representation = DEFAULT_OBJECT_REPR
-            kwargs.setdefault("object_representation", object_representation)
+                event_column = DEFAULT_OBJECT_REPR
+            kwargs.setdefault("event_column", event_column)
 
             # set correlation id
             return self.create(**kwargs)
@@ -85,20 +87,22 @@ class LogEntryManager(models.Manager):
         """
 
         pk = self._get_pk_value(instance)
+        table_name = self._get_table_name(instance)
         if changed_queryset:
             kwargs.setdefault(
                 "content_type", ContentType.objects.get_for_model(instance)
             )
-            kwargs.setdefault("record", pk)
+            kwargs.setdefault("identifier", pk)
+            kwargs.setdefault("event_table", table_name)
             try:
-                object_representation = smart_str(instance)
+                event_column = smart_str(instance)
             except ObjectDoesNotExist:
-                object_representation = DEFAULT_OBJECT_REPR
-            kwargs.setdefault("object_representation", object_representation)
+                event_column = DEFAULT_OBJECT_REPR
+            kwargs.setdefault("event_column", event_column)
             kwargs.setdefault("action", LogEntry.Action.UPDATE)
 
             objects = [smart_str(instance) for instance in changed_queryset]
-            kwargs["changes"] = {
+            kwargs["change_value"] = {
                 field_name: {
                     "type": "m2m",
                     "operation": operation,
@@ -129,7 +133,7 @@ class LogEntryManager(models.Manager):
         if isinstance(pk, int):
             return self.filter(content_type=content_type)
         else:
-            return self.filter(content_type=content_type, record=smart_str(pk))
+            return self.filter(content_type=content_type, identifier=smart_str(pk))
 
     def get_for_objects(self, queryset):
         """
@@ -154,13 +158,13 @@ class LogEntryManager(models.Manager):
             primary_keys = [smart_str(pk) for pk in primary_keys]
             return (
                 self.filter(content_type=content_type)
-                .filter(Q(record__in=primary_keys))
+                .filter(Q(identifier__in=primary_keys))
                 .distinct()
             )
         else:
             return (
                 self.filter(content_type=content_type)
-                .filter(Q(record__in=primary_keys))
+                .filter(Q(identifier__in=primary_keys))
                 .distinct()
             )
 
@@ -196,6 +200,16 @@ class LogEntryManager(models.Manager):
         if isinstance(pk, models.Model):
             pk = self._get_pk_value(pk)
         return pk
+    
+    def _get_table_name(self, instance):
+        """
+        Get the table name for a model instance.
+        :param instance: The model instance to get the table name for.
+        :type instance: Model
+        :return: The table name of the given model instance.
+        """
+        table_name = instance._meta.db_table
+        return table_name
 
     def _get_copy_with_python_typed_fields(self, instance):
         """
@@ -295,27 +309,30 @@ class LogEntry(models.Model):
             (data_cleaning, _("data_cleaning")),
         )
 
-    developer_name = models.CharField(
-        max_length=255, verbose_name=_("developer name"), default="willisaplication"
+    source = models.CharField(
+        max_length=255, verbose_name=_("source"), default="application"
     )
     database_name = models.CharField(
         max_length=255, verbose_name=_("database name"), default=settings.DATABASE_NAME
     )
-    record = models.CharField(
-        db_index=True, max_length=255, verbose_name=_("object pk")
+    identifier = models.CharField(
+        db_index=True, max_length=255, verbose_name=_("identifier"), default="None"
     )
-    reason = models.CharField(
+    event_table = models.CharField(
+        max_length=255, verbose_name=_("event table"), default="None"
+    )
+    event_type = models.CharField(
         max_length=255,
         choices=Reason.choices,
-        verbose_name=_("reason"),
+        verbose_name=_("event_type"),
         null=True,
         blank=True,
     )
-    object_representation = models.TextField(verbose_name=_("object representation"))
+    event_column = models.TextField(verbose_name=_("event column"), default="None")
     action = models.PositiveSmallIntegerField(
         choices=Action.choices, verbose_name=_("action"), db_index=True
     )
-    changes = models.JSONField(null=True, verbose_name=_("change message"))
+    change_value = models.JSONField(null=True, verbose_name=_("change message"))
     timestamp = models.DateTimeField(
         default=django_timezone.now,
         db_index=True,
@@ -346,7 +363,7 @@ class LogEntry(models.Model):
         else:
             fstring = _("Logged {repr:s}")
 
-        return fstring.format(repr=self.object_representation)
+        return fstring.format(repr=self.event_column)
 
     @property
     def changes_dict(self):
@@ -528,12 +545,12 @@ changes_func = None
 
 def _changes_func() -> Callable[[LogEntry], Dict]:
     def json_then_text(instance: LogEntry) -> Dict:
-        if instance.changes:
-            return instance.changes
+        if instance.change_value:
+            return instance.change_value
         return {}
 
     def default(instance: LogEntry) -> Dict:
-        return instance.changes or {}
+        return instance.change_value or {}
 
     if settings.AUDITLOG_USE_TEXT_CHANGES_IF_JSON_IS_NOT_PRESENT:
         return json_then_text
