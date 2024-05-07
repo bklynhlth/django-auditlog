@@ -43,7 +43,7 @@ def log_create(sender, instance, created, **kwargs):
             sender=sender,
             diff_old=None,
             diff_new=instance,
-            reason=LogEntry.Reason.data_entry,
+            event_type=LogEntry.Reason.data_entry,
         )
 
 
@@ -64,7 +64,7 @@ def log_update(sender, instance, **kwargs):
             diff_old=old,
             diff_new=instance,
             fields_to_check=update_fields,
-            reason=LogEntry.Reason.data_processing,
+            event_type=LogEntry.Reason.data_processing,
         )
 
 
@@ -82,7 +82,7 @@ def log_delete(sender, instance, **kwargs):
             sender=sender,
             diff_old=instance,
             diff_new=None,
-            reason=LogEntry.Reason.data_deletion,
+            event_type=LogEntry.Reason.data_deletion,
         )
 
 
@@ -100,7 +100,7 @@ def log_access(sender, instance, **kwargs):
             diff_old=None,
             diff_new=None,
             force_log=True,
-            reason=LogEntry.Reason.data_processing,
+            event_type=LogEntry.Reason.data_processing,
         )
 
 
@@ -110,12 +110,12 @@ def _create_log_entry(
     sender,
     diff_old,
     diff_new,
-    reason,
+    event_type,
     fields_to_check=None,
     force_log=False,
 ):
     pre_log_results = pre_log.send(
-        sender, instance=instance, action=action, reason=reason
+        sender, instance=instance, action=action, event_type=event_type
     )
 
     if any(item[1] is False for item in pre_log_results):
@@ -123,19 +123,19 @@ def _create_log_entry(
 
     error = None
     log_entry = None
-    changes = None
+    change_value = None
     try:
-        changes = model_instance_diff(
+        change_value = model_instance_diff(
             diff_old, diff_new, fields_to_check=fields_to_check
         )
 
-        if force_log or changes:
+        if force_log or change_value:
             log_entry = LogEntry.objects.log_create(
                 instance,
                 action=action,
-                changes=changes,
+                change_value=change_value,
                 force_log=force_log,
-                reason=reason,
+                event_type=event_type,
             )
     except BaseException as e:
         error = e
@@ -148,10 +148,10 @@ def _create_log_entry(
                 action=action,
                 error=error,
                 pre_log_results=pre_log_results,
-                changes=changes,
+                change_value=change_value,
                 log_entry=log_entry,
                 log_created=log_entry is not None,
-                reason=reason,
+                event_type=event_type,
             )
         if error:
             raise error

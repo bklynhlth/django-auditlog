@@ -22,13 +22,13 @@ class LogEntryAdmin(admin.ModelAdmin, LogEntryAdminMixin):
     search_fields = [
         "timestamp",
         "object_representation",
-        "changes",
+        "change_value",
     ]
     list_filter = ["action", ResourceTypeFilter]
     readonly_fields = ["created", "resource_url", "action", "user_url", "msg"]
     fieldsets = [
         (None, {"fields": ["created", "user_url", "resource_url"]}),
-        (_("Changes"), {"fields": ["action", "msg"]}),
+        (_("change_value"), {"fields": ["action", "msg"]}),
     ]
 
     def has_add_permission(self, request):

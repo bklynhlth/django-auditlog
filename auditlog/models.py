@@ -158,13 +158,13 @@ class LogEntryManager(models.Manager):
             primary_keys = [smart_str(pk) for pk in primary_keys]
             return (
                 self.filter(content_type=content_type)
-                .filter(Q(record__in=primary_keys))
+                .filter(Q(identifier__in=primary_keys))
                 .distinct()
             )
         else:
             return (
                 self.filter(content_type=content_type)
-                .filter(Q(record__in=primary_keys))
+                .filter(Q(identifier__in=primary_keys))
                 .distinct()
             )
 
@@ -204,7 +204,6 @@ class LogEntryManager(models.Manager):
     def _get_table_name(self, instance):
         """
         Get the table name for a model instance.
-
         :param instance: The model instance to get the table name for.
         :type instance: Model
         :return: The table name of the given model instance.
