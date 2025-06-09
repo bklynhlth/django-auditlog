@@ -22,7 +22,6 @@ from django.utils import formats
 from django.utils import timezone as django_timezone
 from django.utils.encoding import smart_str
 from django.utils.translation import gettext_lazy as _
-from django.conf import settings
 
 from auditlog.diff import mask_str
 
@@ -284,10 +283,10 @@ class LogEntry(models.Model):
         :py:attr:`Action.DELETE` and :py:attr:`Action.ACCESS`.
         """
 
-        CREATE = 0
-        UPDATE = 1
-        DELETE = 2
-        ACCESS = 3
+        CREATE = 'create'
+        UPDATE = 'update'
+        DELETE = 'delete'
+        ACCESS = 'access'
 
         choices = (
             (CREATE, _("create")),
@@ -308,9 +307,13 @@ class LogEntry(models.Model):
             (data_deletion, _("data_deletion")),
             (data_cleaning, _("data_cleaning")),
         )
-
-    source = models.CharField(
-        max_length=255, verbose_name=_("source"), default="application"
+    source = models.ForeignKey(
+        to=settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="+",
+        verbose_name=_("source"),
     )
     database_name = models.CharField(
         max_length=255, verbose_name=_("database name"), default=settings.DATABASE_NAME
@@ -329,8 +332,8 @@ class LogEntry(models.Model):
         blank=True,
     )
     event_column = models.TextField(verbose_name=_("event column"), default="None")
-    action = models.PositiveSmallIntegerField(
-        choices=Action.choices, verbose_name=_("action"), db_index=True
+    action = models.CharField(
+        max_length=255, choices=Action.choices, verbose_name=_("action"), db_index=True
     )
     change_value = models.JSONField(null=True, verbose_name=_("change message"))
     timestamp = models.DateTimeField(
